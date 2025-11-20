@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+.env/
+
+# UV cache (según ciertas operaciones)
+.uv/
+.uv_cache/
+
+# Jupyter (por si luego usas notebooks)
+.ipynb_checkpoints/
+
+# macOS basura
+.DS_Store
+
+# Editor configs
+.vscode/
+.idea/

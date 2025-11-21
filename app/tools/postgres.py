@@ -6,6 +6,7 @@ from app.config.settings import get_config
 from app.config.database import get_db_connection
 from app.services.sql_guardrails import validate_query
 from app.services.sql_validator import validate_and_correct_query
+from app.services.agent_context import get_agent_context
 
 logger = logging.getLogger(__name__)
 
@@ -62,24 +63,42 @@ def run_postgres_query(query: str) -> Dict[str, Any]:
                         result_msg += f" (NOTE: Results were truncated to {MAX_ROWS} rows for efficiency. If you need more specific data, refine your WHERE clause.)"
                     
                     logger.info(result_msg)
-                    return {
+                    result = {
                         "success": True,
                         "data": data,
                         "message": result_msg,
                         "query": query
                     }
+                    
+                    # Record in context for structured response
+                    context = get_agent_context()
+                    context.record_sql_execution(query, result)
+                    
+                    return result
                 else:
-                    return {
+                    result = {
                         "success": True,
                         "data": [],
                         "message": "Query executed successfully (no results)",
                         "query": query
                     }
                     
+                    # Record in context
+                    context = get_agent_context()
+                    context.record_sql_execution(query, result)
+                    
+                    return result
+                    
     except Exception as e:
         logger.error(f"Postgres query failed: {e}")
-        return {
+        result = {
             "success": False,
             "error": str(e),
             "query": query
         }
+        
+        # Record error in context
+        context = get_agent_context()
+        context.record_sql_execution(query, result)
+        
+        return result

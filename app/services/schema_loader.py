@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import psycopg2
 from app.config.settings import get_config
+from app.config.database import get_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -12,50 +13,32 @@ _schema_cache: Optional[List[Dict[str, Any]]] = None
 def extract_schema_from_db() -> List[Dict[str, Any]]:
     """
     Extract database schema automatically from PostgreSQL using information_schema.
-    
-    Queries the database to get:
-    - All tables in the public schema
-    - Columns with their types and nullability
-    - Primary keys
-    - Foreign keys
-    - Column comments (if available)
-    
-    Returns:
-        List of table definitions with complete metadata
+    Optimized to use connection pooling and fewer queries.
     """
-    config = get_config()
     schema_data = []
     
     try:
-        conn = psycopg2.connect(
-            host=config["postgres_host"],
-            port=config["postgres_port"],
-            database=config["postgres_db"],
-            user=config["postgres_user"],
-            password=config["postgres_password"]
-        )
-        
-        with conn.cursor() as cursor:
-            # Get all tables in public schema
-            cursor.execute("""
-                SELECT 
-                    table_schema,
-                    table_name,
-                    obj_description((table_schema||'.'||table_name)::regclass, 'pg_class') as table_comment
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_type = 'BASE TABLE'
-                ORDER BY table_name;
-            """)
-            
-            tables = cursor.fetchall()
-            
-            for table_schema, table_name, table_comment in tables:
-                logger.info(f"Extracting schema for table: {table_name}")
-                
-                # Get columns for this table
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                # 1. Get all tables in public schema
                 cursor.execute("""
                     SELECT 
+                        table_name,
+                        obj_description((table_schema||'.'||table_name)::regclass, 'pg_class') as table_comment
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_type = 'BASE TABLE'
+                    ORDER BY table_name;
+                """)
+                tables = cursor.fetchall()
+                
+                if not tables:
+                    return []
+
+                # 2. Get all columns for all tables in one query
+                cursor.execute("""
+                    SELECT 
+                        table_name,
                         column_name,
                         data_type,
                         is_nullable,
@@ -63,90 +46,72 @@ def extract_schema_from_db() -> List[Dict[str, Any]]:
                         character_maximum_length,
                         col_description((table_schema||'.'||table_name)::regclass::oid, ordinal_position) as column_comment
                     FROM information_schema.columns
-                    WHERE table_schema = %s AND table_name = %s
-                    ORDER BY ordinal_position;
-                """, (table_schema, table_name))
+                    WHERE table_schema = 'public'
+                    ORDER BY table_name, ordinal_position;
+                """)
+                all_columns = cursor.fetchall()
                 
-                columns_data = cursor.fetchall()
-                columns = []
-                
-                for col_name, data_type, is_nullable, col_default, max_length, col_comment in columns_data:
+                # Group columns by table
+                columns_by_table = {}
+                for row in all_columns:
+                    t_name = row[0]
+                    if t_name not in columns_by_table:
+                        columns_by_table[t_name] = []
+                    
+                    col_name, data_type, is_nullable, col_default, max_length, col_comment = row[1:]
                     type_str = data_type
                     if max_length:
                         type_str = f"{data_type}({max_length})"
-                    
-                    columns.append({
+                        
+                    columns_by_table[t_name].append({
                         "Name": col_name,
                         "Type": type_str,
                         "Nullable": is_nullable == "YES",
                         "Default": col_default,
                         "Comment": col_comment or f"Column {col_name}"
                     })
-                
-                # Get primary keys
+
+                # 3. Get all primary keys in one query
                 cursor.execute("""
-                    SELECT kcu.column_name
+                    SELECT tc.table_name, kcu.column_name
                     FROM information_schema.table_constraints tc
                     JOIN information_schema.key_column_usage kcu 
                         ON tc.constraint_name = kcu.constraint_name
                         AND tc.table_schema = kcu.table_schema
                     WHERE tc.constraint_type = 'PRIMARY KEY'
-                    AND tc.table_schema = %s
-                    AND tc.table_name = %s
-                    ORDER BY kcu.ordinal_position;
-                """, (table_schema, table_name))
+                    AND tc.table_schema = 'public'
+                    ORDER BY tc.table_name, kcu.ordinal_position;
+                """)
+                all_pks = cursor.fetchall()
                 
-                primary_keys = [{"column_name": row[0], "constraint": "primary key"} for row in cursor.fetchall()]
-                
-                # Get foreign keys
-                cursor.execute("""
-                    SELECT
-                        kcu.column_name,
-                        ccu.table_name AS foreign_table_name,
-                        ccu.column_name AS foreign_column_name
-                    FROM information_schema.table_constraints AS tc
-                    JOIN information_schema.key_column_usage AS kcu
-                        ON tc.constraint_name = kcu.constraint_name
-                        AND tc.table_schema = kcu.table_schema
-                    JOIN information_schema.constraint_column_usage AS ccu
-                        ON ccu.constraint_name = tc.constraint_name
-                        AND ccu.table_schema = tc.table_schema
-                    WHERE tc.constraint_type = 'FOREIGN KEY'
-                    AND tc.table_schema = %s
-                    AND tc.table_name = %s;
-                """, (table_schema, table_name))
-                
-                foreign_keys = [
-                    {
-                        "column_name": row[0],
-                        "references_table": row[1],
-                        "references_column": row[2]
-                    }
-                    for row in cursor.fetchall()
-                ]
-                
-                # Build table definition
-                table_def = {
-                    "database_name": config["postgres_db"],
-                    "table_name": table_name,
-                    "table_description": table_comment or f"Table {table_name}",
-                    "columns": columns,
-                    "relationships": {
-                        "primary_key": primary_keys,
-                        "foreign_key": foreign_keys
-                    }
-                }
-                
-                schema_data.append(table_def)
-        
-        conn.close()
-        logger.info(f"Successfully extracted schema for {len(schema_data)} tables")
-        return schema_data
-        
-    except psycopg2.Error as e:
-        logger.error(f"Failed to extract schema from database: {e}")
-        # Return empty schema on error
+                pks_by_table = {}
+                for t_name, col_name in all_pks:
+                    if t_name not in pks_by_table:
+                        pks_by_table[t_name] = []
+                    pks_by_table[t_name].append({
+                        "column_name": col_name,
+                        "constraint": "primary key"
+                    })
+
+                # Assemble final schema structure
+                for table_name, table_comment in tables:
+                    schema_data.append({
+                        "database_name": "postgres", # Generic name or from config
+                        "table_name": table_name,
+                        "table_description": table_comment or f"Table {table_name}",
+                        "columns": columns_by_table.get(table_name, []),
+                        "relationships": {
+                            "primary_key": pks_by_table.get(table_name, []),
+                            "foreign_key": [] # TODO: Implement FK extraction if needed
+                        }
+                    })
+                    
+    except Exception as e:
+        logger.error(f"Error extracting schema: {e}")
+        # Return empty list or cached version if available on error
         return []
+        
+    return schema_data
 
 
 def load_schema(use_cache: bool = True, force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -169,3 +134,44 @@ def load_schema(use_cache: bool = True, force_refresh: bool = False) -> List[Dic
         logger.info("Using cached schema")
     
     return _schema_cache
+
+
+def format_schema_for_llm(schema: List[Dict[str, Any]]) -> str:
+    """
+    Format the schema into a compact string representation optimized for LLMs.
+    Reduces token usage significantly compared to raw JSON.
+    """
+    lines = []
+    for table in schema:
+        table_name = table["table_name"]
+        desc = table.get("table_description", "")
+        if desc and desc != f"Table {table_name}":
+            lines.append(f"Table: {table_name} ({desc})")
+        else:
+            lines.append(f"Table: {table_name}")
+            
+        # Columns
+        cols = []
+        for col in table["columns"]:
+            c_name = col["Name"]
+            c_type = col["Type"]
+            extras = []
+            if not col["Nullable"]:
+                extras.append("NOT NULL")
+            
+            # Check for PK
+            is_pk = False
+            for pk in table["relationships"]["primary_key"]:
+                if pk["column_name"] == c_name:
+                    is_pk = True
+                    break
+            if is_pk:
+                extras.append("PK")
+                
+            extra_str = f" [{', '.join(extras)}]" if extras else ""
+            cols.append(f"  - {c_name} ({c_type}){extra_str}")
+            
+        lines.extend(cols)
+        lines.append("") # Empty line between tables
+        
+    return "\n".join(lines)

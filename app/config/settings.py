@@ -3,7 +3,7 @@ Configuration management for the NL2SQL agent.
 Using python-dotenv so your .env loads automatically.
 """
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # type: ignore
 from typing import Dict, Any
 
 # Carga automáticamente el archivo .env en os.environ

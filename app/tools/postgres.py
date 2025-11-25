@@ -7,8 +7,12 @@ from app.config.database import get_db_connection
 from app.services.sql_guardrails import validate_query
 from app.services.sql_validator import validate_and_correct_query
 from app.services.agent_context import get_agent_context
+from app.services.toon_optimizer import get_toon_optimizer
 
 logger = logging.getLogger(__name__)
+
+# Configuración TOON
+TOON_ENABLED = True  # Activar/desactivar optimización TOON
 
 @tool # type: ignore
 def run_postgres_query(query: str) -> Dict[str, Any]:
@@ -63,11 +67,35 @@ def run_postgres_query(query: str) -> Dict[str, Any]:
                         result_msg += f" (NOTE: Results were truncated to {MAX_ROWS} rows for efficiency. If you need more specific data, refine your WHERE clause.)"
                     
                     logger.info(result_msg)
+                    
+                    # TOON Optimization: Reducir tokens en el output
+                    optimized_data = data
+                    toon_stats = None
+                    if TOON_ENABLED and len(data) > 0:
+                        toon = get_toon_optimizer()
+                        # Obtener la pregunta del contexto si está disponible
+                        ctx = get_agent_context()
+                        question = getattr(ctx, 'current_question', '')
+                        
+                        toon_result = toon.optimize_query_result(data, question)
+                        optimized_data = toon_result["optimized_data"]
+                        toon_stats = {
+                            "original_rows": len(data),
+                            "optimized_rows": len(optimized_data),
+                            "fields_removed": toon_result.get("fields_removed", 0),
+                            "summary": toon_result.get("summary")
+                        }
+                        
+                        if toon_stats["fields_removed"] > 0:
+                            logger.info(f"TOON: Removed {toon_stats['fields_removed']} redundant fields")
+                    
                     result = {
                         "success": True,
-                        "data": data,
+                        "data": optimized_data,
+                        "raw_row_count": len(data),  # Para el frontend
                         "message": result_msg,
-                        "query": query
+                        "query": query,
+                        "toon_optimization": toon_stats
                     }
                     
                     # Record in context for structured response

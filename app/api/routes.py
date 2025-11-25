@@ -11,6 +11,8 @@ from app.agents.nl2sql_agent import create_nl2sql_agent
 from app.api.models import AskRequest, AskResponse, AgentResponse, VisualizationType
 from app.services.response_formatter import analyze_result_for_visualization
 from app.services.agent_context import get_agent_context, reset_agent_context
+from app.services.token_counter import get_token_counter
+from app.services.toon_optimizer import get_toon_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,44 @@ app.add_middleware(
 def health():
     """Health check endpoint"""
     return {"status": "ok", "service": "nl2sql-agent"}
+
+
+@app.get("/stats/tokens")
+def get_token_stats():
+    """
+    Get token usage statistics for the current session.
+    
+    Returns:
+        - Total tokens used (input/output)
+        - Average tokens per request
+        - Estimated cost in USD
+        - Optimization suggestions
+    """
+    counter = get_token_counter()
+    stats = counter.get_session_stats()
+    suggestions = counter.get_optimization_suggestions()
+    
+    return {
+        "session_stats": stats,
+        "optimization_suggestions": suggestions,
+        "toon_status": "enabled"
+    }
+
+
+@app.post("/stats/tokens/reset")
+def reset_token_stats():
+    """Reset token statistics for a new session."""
+    counter = get_token_counter()
+    counter.reset_session()
+    return {"message": "Token statistics reset successfully"}
+
+
+@app.get("/stats/tokens/export")
+def export_token_stats():
+    """Export token usage history to JSON file."""
+    counter = get_token_counter()
+    filepath = counter.export_history()
+    return {"message": f"Token history exported to {filepath}"}
 
 
 @app.post("/ask", response_model=AskResponse)

@@ -26,4 +26,6 @@ wheels/
 .vscode/
 .idea/
 
+.dockerignore
+
 server.log

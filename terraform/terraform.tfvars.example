@@ -1,0 +1,59 @@
+# =============================================================================
+# Terraform Variables Configuration
+# =============================================================================
+# Copy this file to terraform.tfvars and customize the values
+# DO NOT commit terraform.tfvars to version control if it contains secrets
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# General Configuration
+# -----------------------------------------------------------------------------
+project_name = "nl2sql-agent"
+environment  = "dev"
+aws_region   = "us-east-1"
+
+# -----------------------------------------------------------------------------
+# ECR Configuration
+# -----------------------------------------------------------------------------
+ecr_repository_name = "nl2sql-agent"
+image_tag           = "latest"  # Changed by CI/CD to commit SHA
+
+# -----------------------------------------------------------------------------
+# Lambda Configuration
+# -----------------------------------------------------------------------------
+lambda_function_name = "nl2sql-agent"
+lambda_memory        = 1024  # MB - increase if needed for AI processing
+lambda_timeout       = 60   # seconds - increase for complex queries
+
+# Application environment variables
+# Add your secrets here (or use Secrets Manager)
+lambda_environment_variables = {
+  # DATABASE_URL   = "postgresql://user:pass@host:5432/db"
+  # GEMINI_API_KEY = "your-gemini-api-key"
+}
+
+log_level          = "INFO"
+log_retention_days = 14
+
+# -----------------------------------------------------------------------------
+# VPC Configuration (optional - uncomment if Lambda needs RDS access)
+# -----------------------------------------------------------------------------
+# vpc_subnet_ids         = ["subnet-xxx", "subnet-yyy"]
+# vpc_security_group_ids = ["sg-xxx"]
+
+# -----------------------------------------------------------------------------
+# Function URL Configuration
+# -----------------------------------------------------------------------------
+function_url_auth_type = "NONE"  # Use "AWS_IAM" for production
+cors_allowed_origins   = ["*"]   # Restrict in production
+
+# -----------------------------------------------------------------------------
+# Secrets Manager (optional)
+# -----------------------------------------------------------------------------
+enable_secrets_manager = false
+# secrets_manager_arns   = ["arn:aws:secretsmanager:us-east-1:123456789:secret:my-secret"]
+
+# -----------------------------------------------------------------------------
+# GitHub Actions CI/CD
+# -----------------------------------------------------------------------------
+create_github_actions_user = true

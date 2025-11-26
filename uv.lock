@@ -1096,6 +1096,35 @@ wheels = [
 ]
 
 [[package]]
+name = "nl2sql-agent"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "mangum" },
+    { name = "psycopg2-binary" },
+    { name = "pytest" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "strands-agents", extra = ["gemini"] },
+    { name = "strands-agents-tools" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.104.0" },
+    { name = "mangum", specifier = ">=0.19.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.0" },
+    { name = "pytest", specifier = ">=9.0.1" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "strands-agents", extras = ["gemini"], specifier = ">=0.1.0" },
+    { name = "strands-agents-tools", specifier = ">=0.2.16" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.38.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2121,35 +2150,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/dd/1c/3b471a94088407383fe6a20d73c356647c563b6605585c34c8a4e35cfc4f/strands_agents_tools-0.2.16.tar.gz", hash = "sha256:ba7d91656923508b74518cf292531acec3ed3809b6674fb3e6e419908574fa1e", size = 470535, upload-time = "2025-11-18T19:48:08.28Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/cd/b94d16e971102dce88ba62a68b93ceac867ffbf37e1ee297036e0c83a04e/strands_agents_tools-0.2.16-py3-none-any.whl", hash = "sha256:c9e78357d7f05f8935ff366f14e3cf27817b5f037cb5af1ae8ab8e91d0ab60f4", size = 311497, upload-time = "2025-11-18T19:48:06.342Z" },
-]
-
-[[package]]
-name = "strands-example"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "mangum" },
-    { name = "psycopg2-binary" },
-    { name = "pytest" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-    { name = "strands-agents", extra = ["gemini"] },
-    { name = "strands-agents-tools" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.104.0" },
-    { name = "mangum", specifier = ">=0.19.0" },
-    { name = "psycopg2-binary", specifier = ">=2.9.0" },
-    { name = "pytest", specifier = ">=9.0.1" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "strands-agents", extras = ["gemini"], specifier = ">=0.1.0" },
-    { name = "strands-agents-tools", specifier = ">=0.2.16" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
 ]
 
 [[package]]

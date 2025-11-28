@@ -5,7 +5,6 @@ import re
 import time
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.agents.nl2sql_agent import create_nl2sql_agent
 from app.api.models import AskRequest, AskResponse, AgentResponse, VisualizationType
@@ -23,15 +22,14 @@ app = FastAPI(
     version="0.2.0"
 )
 
-# Enable CORS for React frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # En producción, especifica el dominio de tu frontend
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+@app.get("/")
+def root():
+    """Root endpoint - API info"""
+    return {
+        "service": "nl2sql-agent",
+        "version": "0.2.0",
+        "description": "NL2SQL Agent API - Ask natural language questions about your database."
+    }
 
 @app.get("/health")
 def health():
